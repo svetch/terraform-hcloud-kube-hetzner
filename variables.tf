@@ -815,6 +815,17 @@ variable "cilium_values" {
   description = "Additional helm values file to pass to Cilium as 'valuesContent' at the HelmChart."
 }
 
+variable "cilium_merge_values" {
+  type        = string
+  default     = ""
+  description = "Additional Helm values to merge with defaults (or cilium_values if set). User values take precedence. Requires valid YAML format."
+
+  validation {
+    condition     = var.cilium_merge_values == "" || can(yamldecode(var.cilium_merge_values))
+    error_message = "cilium_merge_values must be valid YAML format or empty string."
+  }
+}
+
 variable "cilium_version" {
   type        = string
   default     = "1.17.0"

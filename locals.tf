@@ -567,7 +567,7 @@ locals {
 
   kube_apiserver_arg = var.authentication_config != "" ? ["authentication-config=/etc/rancher/k3s/authentication_config.yaml"] : []
 
-  cilium_values = var.cilium_values != "" ? var.cilium_values : <<EOT
+  cilium_values_default = <<EOT
 # Enable Kubernetes host-scope IPAM mode (required for K3s + Hetzner CCM)
 ipam:
   mode: kubernetes
@@ -637,6 +637,15 @@ hubble:
 
 MTU: 1450
   EOT
+
+  cilium_values_base = var.cilium_values != "" ? var.cilium_values : local.cilium_values_default
+
+  cilium_values = var.cilium_merge_values != "" ? yamlencode(
+    provider::deepmerge::mergo(
+      yamldecode(local.cilium_values_base),
+      yamldecode(var.cilium_merge_values)
+    )
+  ) : local.cilium_values_base
 
   # Not to be confused with the other helm values, this is used for the calico.yaml kustomize patch
   # It also serves as a stub for a potential future use via helm values
