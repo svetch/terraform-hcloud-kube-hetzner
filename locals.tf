@@ -693,7 +693,7 @@ node:
 EOT
   : "")
 
-  nginx_values = var.nginx_values != "" ? var.nginx_values : <<EOT
+  nginx_values_default = <<EOT
 controller:
   watchIngressWithoutClass: "true"
   kind: "Deployment"
@@ -722,6 +722,15 @@ controller:
 %{endif~}
 %{endif~}
   EOT
+
+  nginx_values_base = var.nginx_values != "" ? var.nginx_values : local.nginx_values_default
+
+  nginx_values = var.nginx_merge_values != "" ? yamlencode(
+    provider::deepmerge::mergo(
+      yamldecode(local.nginx_values_base),
+      yamldecode(var.nginx_merge_values)
+    )
+  ) : local.nginx_values_base
 
   hetzner_ccm_values = var.hetzner_ccm_values != "" ? var.hetzner_ccm_values : <<EOT
 networking:
@@ -927,7 +936,7 @@ EOT
 traefik_values_base = var.traefik_values != "" ? var.traefik_values : local.traefik_values_default
 
 traefik_values = var.traefik_merge_values != "" ? yamlencode(
-  merge(
+  provider::deepmerge::mergo(
     yamldecode(local.traefik_values_base),
     yamldecode(var.traefik_merge_values)
   )
