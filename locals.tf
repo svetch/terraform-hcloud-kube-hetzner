@@ -757,7 +757,7 @@ env:
 hostNetwork: true
   EOT
 
-  haproxy_values = var.haproxy_values != "" ? var.haproxy_values : <<EOT
+  haproxy_values_default = <<EOT
 controller:
   kind: "Deployment"
   replicaCount: ${local.ingress_replica_count}
@@ -803,6 +803,15 @@ controller:
 %{endif~}
 %{endif~}
   EOT
+
+haproxy_values_base = var.haproxy_values != "" ? var.haproxy_values : local.haproxy_values_default
+
+haproxy_values = var.haproxy_merge_values != "" ? yamlencode(
+  provider::deepmerge::mergo(
+    yamldecode(local.haproxy_values_base),
+    yamldecode(var.haproxy_merge_values)
+  )
+) : local.haproxy_values_base
 
 traefik_values_default = <<EOT
 image:

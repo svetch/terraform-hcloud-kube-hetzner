@@ -635,6 +635,17 @@ variable "haproxy_values" {
   description = "Helm values file to pass to haproxy as 'valuesContent' at the HelmChart, overriding the default."
 }
 
+variable "haproxy_merge_values" {
+  type        = string
+  default     = ""
+  description = "Additional Helm values to merge with defaults (or haproxy_values if set). User values take precedence. Requires valid YAML format."
+
+  validation {
+    condition     = var.haproxy_merge_values == "" || can(yamldecode(var.haproxy_merge_values))
+    error_message = "haproxy_merge_values must be valid YAML format or empty string."
+  }
+}
+
 variable "allow_scheduling_on_control_plane" {
   type        = bool
   default     = false
