@@ -795,7 +795,7 @@ controller:
 %{endif~}
   EOT
 
-traefik_values = var.traefik_values != "" ? var.traefik_values : <<EOT
+traefik_values_default = <<EOT
 image:
   tag: ${var.traefik_image_tag}
 deployment:
@@ -922,7 +922,16 @@ autoscaling:
   minReplicas: ${local.ingress_replica_count}
   maxReplicas: ${local.ingress_max_replica_count}
 %{endif~}
-  EOT
+EOT
+
+traefik_values_base = var.traefik_values != "" ? var.traefik_values : local.traefik_values_default
+
+traefik_values = var.traefik_merge_values != "" ? yamlencode(
+  merge(
+    yamldecode(local.traefik_values_base),
+    yamldecode(var.traefik_merge_values)
+  )
+) : local.traefik_values_base
 
 rancher_values = var.rancher_values != "" ? var.rancher_values : <<EOT
 hostname: "${var.rancher_hostname != "" ? var.rancher_hostname : var.lb_hostname}"
