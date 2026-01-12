@@ -771,7 +771,8 @@ module "kube-hetzner" {
   # k3s_exec_agent_args = "--kubelet-arg kube-reserved=cpu=100m,memory=200Mi,ephemeral-storage=1Gi"
 
   # The vars below here passes it to the k3s config.yaml. This way it persist across reboots
-  # Make sure you set "feature-gates=NodeSwap=true,CloudDualStackNodeIPs=true" if want to use swap_size
+  # Make sure you set "feature-gates=NodeSwap=true" if want to use swap_size
+  # Note: CloudDualStackNodeIPs was removed in K8s 1.32 (always enabled now)
   # see https://github.com/k3s-io/k3s/issues/8811#issuecomment-1856974516
   # k3s_global_kubelet_args = ["kube-reserved=cpu=100m,ephemeral-storage=1Gi", "system-reserved=cpu=memory=200Mi", "image-gc-high-threshold=50", "image-gc-low-threshold=40"]
   # k3s_control_plane_kubelet_args = []

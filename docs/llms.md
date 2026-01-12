@@ -403,7 +403,7 @@ The subsequent sections on `control_plane_nodepools` and `agent_nodepools` are e
     * **`swap_size` (String, Optional):**
       * Examples: `"512M"`, `"2G"`, `"4G"`.
       * Configures a swap file of the specified size on the nodes.
-      * **K3s/Kubernetes Consideration:** Kubernetes traditionally doesn't work well with swap. However, recent versions of k3s/kubelet can support it if the `NodeSwap` feature gate is enabled and kubelet is configured correctly. The comment `Make sure you set "feature-gates=NodeSwap=true,CloudDualStackNodeIPs=true" if want to use swap_size` (seen later under `k3s_global_kubelet_args`) is relevant here. Use with caution and understanding of its implications on performance and scheduling.
+      * **K3s/Kubernetes Consideration:** Kubernetes traditionally doesn't work well with swap. However, recent versions of k3s/kubelet can support it if the `NodeSwap` feature gate is enabled and kubelet is configured correctly. The comment `Make sure you set "feature-gates=NodeSwap=true" if want to use swap_size` (seen later under `k3s_global_kubelet_args`) is relevant here. Use with caution and understanding of its implications on performance and scheduling.
     * **`zram_size` (String, Optional):**
       * Examples: `"512M"`, `"1G"`.
       * Configures zRAM (compressed RAM block device, often used for swap) on the nodes.
@@ -1648,7 +1648,8 @@ Excellent! Let's continue our meticulous dissection.
 
 ```terraform
   # The vars below here passes it to the k3s config.yaml. This way it persist across reboots
-  # Make sure you set "feature-gates=NodeSwap=true,CloudDualStackNodeIPs=true" if want to use swap_size
+  # Make sure you set "feature-gates=NodeSwap=true" if want to use swap_size
+  # Note: CloudDualStackNodeIPs was removed in K8s 1.32 (always enabled now)
   # see https://github.com/k3s-io/k3s/issues/8811#issuecomment-1856974516
   # k3s_global_kubelet_args = ["kube-reserved=cpu=100m,ephemeral-storage=1Gi", "system-reserved=cpu=memory=200Mi", "image-gc-high-threshold=50", "image-gc-low-threshold=40"]
   # k3s_control_plane_kubelet_args = []
@@ -1665,7 +1666,7 @@ Excellent! Let's continue our meticulous dissection.
       * `"system-reserved=cpu=memory=200Mi"`
       * `"image-gc-high-threshold=50"`: Kubelet will start garbage collecting unused container images when disk usage for images exceeds 50%.
       * `"image-gc-low-threshold=40"`: Kubelet will stop garbage collecting images once disk usage drops below 40%.
-      * `"feature-gates=NodeSwap=true,CloudDualStackNodeIPs=true"`: As per the comment, this is crucial if you intend to use the `swap_size` attribute on nodepools. `NodeSwap` enables kubelet's experimental swap support. `CloudDualStackNodeIPs` might be relevant for IPv4/IPv6 dual-stack configurations.
+      * `"feature-gates=NodeSwap=true"`: As per the comment, this is crucial if you intend to use the `swap_size` attribute on nodepools. `NodeSwap` enables kubelet's experimental swap support. Note: `CloudDualStackNodeIPs` was removed in K8s 1.32 (always enabled now).
   * **`k3s_control_plane_kubelet_args` (List of Strings, Optional):**
     * Kubelet arguments specific to control plane nodes. These would be merged with or override `k3s_global_kubelet_args`.
   * **`k3s_agent_kubelet_args` (List of Strings, Optional):**
