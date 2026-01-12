@@ -690,17 +690,22 @@ persistence:
   csi_driver_smb_values = var.csi_driver_smb_values != "" ? var.csi_driver_smb_values : <<EOT
   EOT
 
-  hetzner_csi_values = var.hetzner_csi_values != "" ? var.hetzner_csi_values : (!local.allow_scheduling_on_control_plane ? <<-EOT
+  hetzner_csi_values = var.hetzner_csi_values != "" ? var.hetzner_csi_values : <<-EOT
 node:
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
           - matchExpressions:
+%{if !local.allow_scheduling_on_control_plane~}
               - key: "node-role.kubernetes.io/control-plane"
                 operator: DoesNotExist
+%{endif~}
+              - key: "instance.hetzner.cloud/provided-by"
+                operator: NotIn
+                values:
+                  - robot
 EOT
-  : "")
 
   nginx_values_default = <<EOT
 controller:
