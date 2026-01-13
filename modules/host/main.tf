@@ -89,7 +89,7 @@ resource "hcloud_server" "server" {
   provisioner "local-exec" {
     command = <<-EOT
       timeout 600 bash <<EOF
-          until ssh ${local.ssh_args} -i /tmp/${random_string.identity_file.id} ${local.ssh_proxy_jump} -o ConnectTimeout=2 -p ${var.ssh_port} root@${coalesce(self.ipv4_address, self.ipv6_address, try(one(self.network).ip, null))} true 2> /dev/null
+          until ssh ${local.ssh_args} -i /tmp/${random_string.identity_file.id} ${local.ssh_proxy_jump} -o ConnectTimeout=10 -p ${var.ssh_port} root@${coalesce(self.ipv4_address, self.ipv6_address, try(one(self.network).ip, null))} true 2> /dev/null
           do
             echo "Waiting for MicroOS to become available..."
             sleep 3
@@ -147,6 +147,38 @@ resource "null_resource" "registries" {
 
   provisioner "remote-exec" {
     inline = [var.k3s_registries_update_script]
+  }
+
+  depends_on = [hcloud_server.server]
+}
+
+resource "null_resource" "kubelet_config" {
+  count = var.k3s_kubelet_config != "" ? 1 : 0
+
+  triggers = {
+    kubelet_config = var.k3s_kubelet_config
+  }
+
+  connection {
+    user           = "root"
+    private_key    = var.ssh_private_key
+    agent_identity = local.ssh_agent_identity
+    host           = coalesce(hcloud_server.server.ipv4_address, hcloud_server.server.ipv6_address, try(one(hcloud_server.server.network).ip, null))
+    port           = var.ssh_port
+
+    bastion_host        = var.ssh_bastion.bastion_host
+    bastion_port        = var.ssh_bastion.bastion_port
+    bastion_user        = var.ssh_bastion.bastion_user
+    bastion_private_key = var.ssh_bastion.bastion_private_key
+  }
+
+  provisioner "file" {
+    content     = var.k3s_kubelet_config
+    destination = "/tmp/kubelet-config.yaml"
+  }
+
+  provisioner "remote-exec" {
+    inline = [var.k3s_kubelet_config_update_script]
   }
 
   depends_on = [hcloud_server.server]

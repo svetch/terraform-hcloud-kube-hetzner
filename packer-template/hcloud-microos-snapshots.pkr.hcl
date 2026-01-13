@@ -5,7 +5,7 @@ packer {
   required_plugins {
     hcloud = {
       version = ">= 1.0.5"
-      source  = "github.com/hashicorp/hcloud"
+      source  = "github.com/hetznercloud/hcloud"
     }
   }
 }
@@ -79,8 +79,8 @@ locals {
 source "hcloud" "microos-x86-snapshot" {
   image       = "ubuntu-24.04"
   rescue      = "linux64"
-  location    = "fsn1"
-  server_type = "cx22" # disk size of >= 40GiB is needed to install the MicroOS image
+  location    = "nbg1"
+  server_type = "cx23" # disk size of >= 40GiB is needed to install the MicroOS image
   snapshot_labels = {
     microos-snapshot = "yes"
     creator          = "kube-hetzner"
@@ -94,7 +94,7 @@ source "hcloud" "microos-x86-snapshot" {
 source "hcloud" "microos-arm-snapshot" {
   image       = "ubuntu-24.04"
   rescue      = "linux64"
-  location    = "fsn1"
+  location    = "nbg1"
   server_type = "cax11" # disk size of >= 40GiB is needed to install the MicroOS image
   snapshot_labels = {
     microos-snapshot = "yes"

@@ -13,6 +13,7 @@ resource "hcloud_load_balancer" "cluster" {
 
   lifecycle {
     ignore_changes = [
+      location,
       # Ignore changes to hcloud-ccm/service-uid label that is managed by the CCM.
       labels["hcloud-ccm/service-uid"],
     ]
@@ -23,13 +24,14 @@ resource "hcloud_load_balancer_network" "cluster" {
   count = local.has_external_load_balancer ? 0 : 1
 
   load_balancer_id = hcloud_load_balancer.cluster.*.id[0]
+  # Use -2 to get the last usable IP in the subnet
   ip = cidrhost(
     (
       length(hcloud_network_subnet.agent) > 0
       ? hcloud_network_subnet.agent.*.ip_range[0]
       : hcloud_network_subnet.control_plane.*.ip_range[0]
     )
-  , 254)
+  , -2)
   subnet_id = (
     length(hcloud_network_subnet.agent) > 0
     ? hcloud_network_subnet.agent.*.id[0]
@@ -485,7 +487,11 @@ resource "null_resource" "kustomization" {
         "echo 'Waiting for the system-upgrade-controller deployment to become available...'",
         "kubectl -n system-upgrade wait --for=condition=available --timeout=900s deployment/system-upgrade-controller",
         "sleep 7", # important as the system upgrade controller CRDs sometimes don't get ready right away, especially with Cilium.
-        "kubectl -n system-upgrade apply -f /var/post_install/plans.yaml"
+        "kubectl -n system-upgrade apply -f /var/post_install/plans.yaml",
+        # Wait for system namespace deployments to become available
+        "for ns in kube-system ${var.enable_cert_manager ? "cert-manager" : ""} ${var.enable_longhorn ? var.longhorn_namespace : ""} ${local.ingress_controller_namespace} system-upgrade; do [ -n \"$ns\" ] && kubectl get ns $ns &>/dev/null && kubectl -n $ns wait deployment --all --for=condition=Available --timeout=300s || true; done",
+        # Wait for helm install jobs to complete (only in namespaces that have jobs)
+        "for ns in kube-system ${var.enable_longhorn ? var.longhorn_namespace : ""}; do [ -n \"$ns\" ] && kubectl get ns $ns &>/dev/null && kubectl -n $ns get job -o name 2>/dev/null | grep -q . && kubectl -n $ns wait job --all --for=condition=Complete --timeout=300s || true; done"
       ],
       local.has_external_load_balancer ? [] : [
         <<-EOT

@@ -140,7 +140,7 @@ variable "cluster_dns_ipv4" {
 
 
 variable "nat_router" {
-  description = "Do you want to pipe all egress through a single nat router which is to be constructed?"
+  description = "Do you want to pipe all egress through a single nat router which is to be constructed? Note: Requires use_control_plane_lb=true when enabled."
   nullable    = true
   default     = null
   type = object({
@@ -149,10 +149,6 @@ variable "nat_router" {
     labels      = optional(map(string), {})
     enable_sudo = optional(bool, false)
   })
-  validation {
-    condition     = (var.nat_router != null && var.use_control_plane_lb) || (var.nat_router == null)
-    error_message = "If you enable the use of a NAT router, you must set use_control_plane_lb=true."
-  }
 }
 
 variable "nat_router_subnet_index" {
@@ -170,7 +166,7 @@ variable "nat_router_subnet_index" {
 variable "load_balancer_location" {
   description = "Default load balancer location."
   type        = string
-  default     = "fsn1"
+  default     = "nbg1"
 }
 
 variable "load_balancer_type" {
@@ -213,6 +209,12 @@ variable "load_balancer_health_check_retries" {
   description = "Specifies the number of times a health check is retried before a target is marked as unhealthy."
   type        = number
   default     = 3
+}
+
+variable "exclude_agents_from_external_load_balancers" {
+  description = "Add node.kubernetes.io/exclude-from-external-load-balancers=true label to agent nodes. Enable this if you use both the Terraform-managed ingress LB and CCM-managed LoadBalancer services, and want to prevent double-registration of agents to the CCM LBs. Note: This excludes agents from ALL CCM-managed LoadBalancer services, not just ingress."
+  type        = bool
+  default     = false
 }
 
 variable "control_plane_nodepools" {
@@ -260,6 +262,7 @@ variable "agent_nodepools" {
     labels                     = list(string)
     taints                     = list(string)
     longhorn_volume_size       = optional(number)
+    longhorn_mount_path        = optional(string, "/var/longhorn")
     swap_size                  = optional(string, "")
     zram_size                  = optional(string, "")
     kubelet_args               = optional(list(string), ["kube-reserved=cpu=50m,memory=300Mi,ephemeral-storage=1Gi", "system-reserved=cpu=250m,memory=300Mi"])
@@ -279,6 +282,7 @@ variable "agent_nodepools" {
       labels                     = optional(list(string))
       taints                     = optional(list(string))
       longhorn_volume_size       = optional(number)
+      longhorn_mount_path        = optional(string, null)
       swap_size                  = optional(string, "")
       zram_size                  = optional(string, "")
       kubelet_args               = optional(list(string), ["kube-reserved=cpu=50m,memory=300Mi,ephemeral-storage=1Gi", "system-reserved=cpu=250m,memory=300Mi"])
@@ -319,6 +323,28 @@ variable "agent_nodepools" {
     condition = length(var.agent_nodepools) == 0 ? true : sum([for agent_nodepool in var.agent_nodepools : length(coalesce(agent_nodepool.nodes, {})) + coalesce(agent_nodepool.count, 0)]) <= 100
     # 154 because the private ip is derived from tonumber(key) + 101. See private_ipv4 in agents.tf
     error_message = "Hetzner does not support networks with more than 100 servers."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for np in var.agent_nodepools : concat(
+        [
+          can(regex("^/var/[a-zA-Z0-9._-]+(/[a-zA-Z0-9._-]+)*$", np.longhorn_mount_path)) &&
+          !contains(split("/", np.longhorn_mount_path), "..") &&
+          !contains(split("/", np.longhorn_mount_path), ".")
+        ],
+        [
+          for node in values(coalesce(np.nodes, {})) : (
+            node.longhorn_mount_path == null || (
+              can(regex("^/var/[a-zA-Z0-9._-]+(/[a-zA-Z0-9._-]+)*$", node.longhorn_mount_path)) &&
+              !contains(split("/", node.longhorn_mount_path), "..") &&
+              !contains(split("/", node.longhorn_mount_path), ".")
+            )
+          )
+        ]
+      )
+    ]))
+    error_message = "Each longhorn_mount_path must be a valid, absolute path within a subdirectory of '/var/', not contain '.' or '..' components, and not end with a slash. This applies to both nodepool-level and node-level settings."
   }
 
 }
@@ -589,6 +615,17 @@ variable "traefik_values" {
   description = "Additional helm values file to pass to Traefik as 'valuesContent' at the HelmChart."
 }
 
+variable "traefik_merge_values" {
+  type        = string
+  default     = ""
+  description = "Additional Helm values to merge with defaults (or traefik_values if set). User values take precedence. Requires valid YAML format."
+
+  validation {
+    condition     = var.traefik_merge_values == "" || can(yamldecode(var.traefik_merge_values))
+    error_message = "traefik_merge_values must be valid YAML format or empty string."
+  }
+}
+
 variable "nginx_version" {
   type        = string
   default     = ""
@@ -599,6 +636,17 @@ variable "nginx_values" {
   type        = string
   default     = ""
   description = "Additional helm values file to pass to nginx as 'valuesContent' at the HelmChart."
+}
+
+variable "nginx_merge_values" {
+  type        = string
+  default     = ""
+  description = "Additional Helm values to merge with defaults (or nginx_values if set). User values take precedence. Requires valid YAML format."
+
+  validation {
+    condition     = var.nginx_merge_values == "" || can(yamldecode(var.nginx_merge_values))
+    error_message = "nginx_merge_values must be valid YAML format or empty string."
+  }
 }
 
 variable "haproxy_requests_cpu" {
@@ -629,6 +677,17 @@ variable "haproxy_values" {
   type        = string
   default     = ""
   description = "Helm values file to pass to haproxy as 'valuesContent' at the HelmChart, overriding the default."
+}
+
+variable "haproxy_merge_values" {
+  type        = string
+  default     = ""
+  description = "Additional Helm values to merge with defaults (or haproxy_values if set). User values take precedence. Requires valid YAML format."
+
+  validation {
+    condition     = var.haproxy_merge_values == "" || can(yamldecode(var.haproxy_merge_values))
+    error_message = "haproxy_merge_values must be valid YAML format or empty string."
+  }
 }
 
 variable "allow_scheduling_on_control_plane" {
@@ -800,6 +859,17 @@ variable "cilium_values" {
   description = "Additional helm values file to pass to Cilium as 'valuesContent' at the HelmChart."
 }
 
+variable "cilium_merge_values" {
+  type        = string
+  default     = ""
+  description = "Additional Helm values to merge with defaults (or cilium_values if set). User values take precedence. Requires valid YAML format."
+
+  validation {
+    condition     = var.cilium_merge_values == "" || can(yamldecode(var.cilium_merge_values))
+    error_message = "cilium_merge_values must be valid YAML format or empty string."
+  }
+}
+
 variable "cilium_version" {
   type        = string
   default     = "1.17.0"
@@ -876,6 +946,17 @@ variable "longhorn_values" {
   description = "Additional helm values file to pass to longhorn as 'valuesContent' at the HelmChart."
 }
 
+variable "longhorn_merge_values" {
+  type        = string
+  default     = ""
+  description = "Additional Helm values to merge with defaults (or longhorn_values if set). User values take precedence. Requires valid YAML format."
+
+  validation {
+    condition     = var.longhorn_merge_values == "" || can(yamldecode(var.longhorn_merge_values))
+    error_message = "longhorn_merge_values must be valid YAML format or empty string."
+  }
+}
+
 variable "disable_hetzner_csi" {
   type        = bool
   default     = false
@@ -928,6 +1009,17 @@ variable "cert_manager_values" {
   type        = string
   default     = ""
   description = "Additional helm values file to pass to Cert-Manager as 'valuesContent' at the HelmChart. Defaults are set in locals.tf. For cert-manager versions prior to v1.15.0, you need to set 'installCRDs: true'."
+}
+
+variable "cert_manager_merge_values" {
+  type        = string
+  default     = ""
+  description = "Additional Helm values to merge with defaults (or cert_manager_values if set). User values take precedence. Requires valid YAML format."
+
+  validation {
+    condition     = var.cert_manager_merge_values == "" || can(yamldecode(var.cert_manager_merge_values))
+    error_message = "cert_manager_merge_values must be valid YAML format or empty string."
+  }
 }
 
 variable "enable_rancher" {
@@ -1010,6 +1102,17 @@ variable "rancher_values" {
   type        = string
   default     = ""
   description = "Additional helm values file to pass to Rancher as 'valuesContent' at the HelmChart."
+}
+
+variable "rancher_merge_values" {
+  type        = string
+  default     = ""
+  description = "Additional Helm values to merge with defaults (or rancher_values if set). User values take precedence. Requires valid YAML format."
+
+  validation {
+    condition     = var.rancher_merge_values == "" || can(yamldecode(var.rancher_merge_values))
+    error_message = "rancher_merge_values must be valid YAML format or empty string."
+  }
 }
 
 variable "kured_version" {
@@ -1153,6 +1256,12 @@ variable "k3s_registries" {
   type        = string
 }
 
+variable "k3s_kubelet_config" {
+  description = "K3S kubelet-config.yaml contents. Used to configure the kubelet."
+  default     = ""
+  type        = string
+}
+
 variable "additional_tls_sans" {
   description = "Additional TLS SANs to allow connection to control-plane through it."
   default     = []
@@ -1262,4 +1371,15 @@ variable "hetzner_ccm_values" {
   type        = string
   default     = ""
   description = "Additional helm values file to pass to Hetzner Controller Manager as 'valuesContent' at the HelmChart."
+}
+
+variable "hetzner_ccm_merge_values" {
+  type        = string
+  default     = ""
+  description = "Additional Helm values to merge with defaults (or hetzner_ccm_values if set). User values take precedence. Requires valid YAML format."
+
+  validation {
+    condition     = var.hetzner_ccm_merge_values == "" || can(yamldecode(var.hetzner_ccm_merge_values))
+    error_message = "hetzner_ccm_merge_values must be valid YAML format or empty string."
+  }
 }

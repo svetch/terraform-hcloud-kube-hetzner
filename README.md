@@ -100,7 +100,7 @@ The easiest way is to use the [homebrew](https://brew.sh/) package manager to in
 
 |        **Tool**        |                              **Installation Command**                              |
 |:----------------------:|:----------------------------------------------------------------------------------:|
-| Homebrew (macOS/Linux) | brew install terraform packer kubectl hcloud                                       |
+| Homebrew (macOS/Linux) | brew install hashicorp/tap/terraform hashicorp/tap/packer kubectl hcloud           |
 | Yay/Paru (Arch-based)  | yay -S terraform packer kubectl hcloud<br> paru -S terraform packer kubectl hcloud |
 | APT (Debian-based)     | sudo apt install terraform packer kubectl                                          |
 | DNF (Red Hat-based)    | sudo dnf install terraform packer kubectl                                          |
@@ -177,7 +177,7 @@ To manage your cluster with `kubectl`, you can either use SSH to connect to a co
 
 ### Connect via SSH
 
-You can connect to one of the control plane nodes via SSH with `ssh root@<control-plane-ip> -i /path/to/private_key -o StrictHostKeyChecking=no`. Now you are able to use `kubectl` to manage your workloads right away. By default, the firewall allows SSH connections from everywhere. Best to change that to your own IP by configuring the `firewall_ssh_source` in your kube.tf file (don't worry, you can always change it for deploy if your IP changes).
+You can connect to one of the control plane nodes via SSH with `ssh root@<control-plane-ip> -i /path/to/private_key -o StrictHostKeyChecking=no`. Now you are able to use `kubectl` to manage your workloads right away. By default, the firewall allows SSH connections from everywhere. Best to change that to your own IP by configuring the `firewall_ssh_source` in your kube.tf file. If your IP changes, you can update it and re-apply without needing SSH access; see the details in the [SSH docs](https://github.com/kube-hetzner/terraform-hcloud-kube-hetzner/blob/master/docs/ssh.md#firewall-ssh-source-and-changing-ips).
 
 ### Connect via Kube API
 
@@ -395,8 +395,8 @@ Example nodepool configuration:
 ```tf
 {
   name        = "egress",
-  server_type = "cx22",
-  location    = "fsn1",
+  server_type = "cx23",
+  location    = "nbg1",
   labels = [
     "node.kubernetes.io/role=egress"
   ],
@@ -976,7 +976,7 @@ easily map between your nodes and your kube.tf file.
   agent_nodepools = [
     {
       name        = "agent-large",
-      server_type = "cx32",
+      server_type = "cx33",
       location    = "nbg1",
       labels      = [],
       taints      = [],
@@ -989,7 +989,7 @@ easily map between your nodes and your kube.tf file.
         },
         "1" : {
           append_index_to_node_name = false,
-          server_type = "cx42",
+          server_type = "cx43",
           labels = ["my.extra.label=slightlybiggernode"]
           placement_group = "agent-large-pg-2",
         },

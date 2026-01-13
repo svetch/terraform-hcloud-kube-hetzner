@@ -119,7 +119,7 @@ data "cloudinit_config" "autoscaler_config" {
             kubelet-arg   = concat(local.kubelet_arg, var.autoscaler_nodepools[count.index].kubelet_args, var.k3s_global_kubelet_args, var.k3s_autoscaler_kubelet_args)
             flannel-iface = local.flannel_iface
             node-label    = concat(local.default_agent_labels, [for k, v in var.autoscaler_nodepools[count.index].labels : "${k}=${v}"])
-            node-taint    = concat(local.default_agent_taints, [for taint in var.autoscaler_nodepools[count.index].taints : "${taint.key}=${tostring(taint.value)}:${taint.effect}"])
+            node-taint    = compact(concat(local.default_agent_taints, [for taint in var.autoscaler_nodepools[count.index].taints : "${taint.key}=${tostring(taint.value)}:${taint.effect}"]))
             selinux       = !var.disable_selinux
           },
           var.agent_nodes_custom_config,
@@ -159,7 +159,7 @@ data "cloudinit_config" "autoscaler_legacy_config" {
             kubelet-arg   = local.kubelet_arg
             flannel-iface = local.flannel_iface
             node-label    = concat(local.default_agent_labels, var.autoscaler_labels)
-            node-taint    = concat(local.default_agent_taints, var.autoscaler_taints)
+            node-taint    = compact(concat(local.default_agent_taints, var.autoscaler_taints))
             selinux       = !var.disable_selinux
           },
           var.agent_nodes_custom_config,
@@ -207,5 +207,34 @@ resource "null_resource" "autoscaled_nodes_registries" {
 
   provisioner "remote-exec" {
     inline = [local.k3s_registries_update_script]
+  }
+}
+
+resource "null_resource" "autoscaled_nodes_kubelet_config" {
+  for_each = var.k3s_kubelet_config != "" ? local.autoscaled_nodes : {}
+  triggers = {
+    kubelet_config = var.k3s_kubelet_config
+  }
+
+  connection {
+    user           = "root"
+    private_key    = var.ssh_private_key
+    agent_identity = local.ssh_agent_identity
+    host           = coalesce(each.value.ipv4_address, each.value.ipv6_address, try(one(each.value.network).ip, null))
+    port           = var.ssh_port
+
+    bastion_host        = local.ssh_bastion.bastion_host
+    bastion_port        = local.ssh_bastion.bastion_port
+    bastion_user        = local.ssh_bastion.bastion_user
+    bastion_private_key = local.ssh_bastion.bastion_private_key
+  }
+
+  provisioner "file" {
+    content     = var.k3s_kubelet_config
+    destination = "/tmp/kubelet-config.yaml"
+  }
+
+  provisioner "remote-exec" {
+    inline = [local.k3s_kubelet_config_update_script]
   }
 }
