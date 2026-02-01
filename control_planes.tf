@@ -156,8 +156,10 @@ locals {
           hcloud_load_balancer_network.control_plane.*.ip[0],
           var.kubeconfig_server_address != "" ? var.kubeconfig_server_address : null,
           local.control_plane_endpoint_host,
+          !var.control_plane_lb_enable_public_interface && var.nat_router != null ? hcloud_server.nat_router[0].ipv4_address : null
         ]),
-      var.additional_tls_sans)
+        var.additional_tls_sans
+      )
       } : {
       tls-san = concat(
         compact([
