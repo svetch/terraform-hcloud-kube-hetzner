@@ -386,11 +386,11 @@ variable "cluster_autoscaler_server_creation_timeout" {
 variable "cluster_autoscaler_replicas" {
   type        = number
   default     = 1
-  description = "Number of replicas for the cluster autoscaler deployment."
+  description = "Number of replicas for the cluster autoscaler deployment. Multiple replicas use leader election for HA."
 
   validation {
-    condition     = var.cluster_autoscaler_replicas >= 1
-    error_message = "Number of cluster autoscaler replicas must be at least 1."
+    condition     = var.cluster_autoscaler_replicas >= 1 && floor(var.cluster_autoscaler_replicas) == var.cluster_autoscaler_replicas
+    error_message = "Number of cluster autoscaler replicas must be a positive integer."
   }
 }
 
@@ -1397,8 +1397,8 @@ variable "keep_disk_cp" {
 
 variable "sys_upgrade_controller_version" {
   type        = string
-  default     = "v0.14.2"
-  description = "Version of the System Upgrade Controller for automated upgrades of k3s. See https://github.com/rancher/system-upgrade-controller/releases for the available versions."
+  default     = "v0.18.0"
+  description = "Version of the System Upgrade Controller for automated upgrades of k3s. v0.15.0+ supports the 'window' parameter for scheduling upgrades. See https://github.com/rancher/system-upgrade-controller/releases for available versions."
 }
 
 variable "hetzner_ccm_values" {
