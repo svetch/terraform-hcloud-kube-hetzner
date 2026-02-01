@@ -102,6 +102,25 @@ variable "network_ipv4_cidr" {
   default     = "10.0.0.0/8"
 }
 
+variable "subnet_amount" {
+  description = "The amount of subnets into which the network will be split. Must be a power of 2."
+  type        = number
+  default     = 256
+  validation {
+    condition     = floor(log(var.subnet_amount, 2)) == log(var.subnet_amount, 2)
+    error_message = "Subnet amount must be a power of 2."
+  }
+  validation {
+    # Host bits = 32 - prefix, must have enough bits to create subnet_amount subnets
+    condition     = pow(2, 32 - tonumber(split("/", var.network_ipv4_cidr)[1])) >= var.subnet_amount
+    error_message = "The network CIDR is too small for the requested subnet amount. Reduce subnet_amount or use a larger network."
+  }
+  validation {
+    condition     = var.subnet_amount >= length(var.control_plane_nodepools) + length(var.agent_nodepools) + (var.nat_router == null ? 0 : 1)
+    error_message = "Subnet amount must be large enough so that a subnet for each agent pool, each control plane pool and (if enabled) the nat router can be created in the network."
+  }
+}
+
 variable "cluster_ipv4_cidr" {
   description = "Internal Pod CIDR, used for the controller and currently for calico/cilium."
   type        = string
@@ -122,7 +141,7 @@ variable "cluster_dns_ipv4" {
 
 
 variable "nat_router" {
-  description = "Do you want to pipe all egress through a single nat router which is to be constructed? Note: Requires use_control_plane_lb=true when enabled."
+  description = "Do you want to pipe all egress through a single nat router which is to be constructed? Note: Requires use_control_plane_lb=true when enabled. Automatically forwards port 6443 to the control plane LB when control_plane_lb_enable_public_interface=false."
   nullable    = true
   default     = null
   type = object({
@@ -136,11 +155,11 @@ variable "nat_router" {
 variable "nat_router_subnet_index" {
   type        = number
   default     = 200
-  description = "Subnet index (0-255) for NAT router. Default 200 is safe for most deployments. Must not conflict with control plane (counting down from 255) or agent pools (counting up from 0)."
+  description = "Subnet index for NAT router. Default 200 is safe for most deployments. Must not conflict with control plane (counting down from 255) or agent pools (counting up from 0)."
 
   validation {
-    condition     = var.nat_router_subnet_index >= 0 && var.nat_router_subnet_index <= 255
-    error_message = "NAT router subnet index must be between 0 and 255."
+    condition     = var.nat_router_subnet_index >= 0 && var.nat_router_subnet_index < var.subnet_amount
+    error_message = "NAT router subnet index must be between 0 and subnet_amount."
   }
 }
 
@@ -1170,7 +1189,7 @@ variable "control_plane_lb_type" {
 variable "control_plane_lb_enable_public_interface" {
   type        = bool
   default     = true
-  description = "Enable or disable public interface for the control plane load balancer . Defaults to true."
+  description = "Enable or disable public interface for the control plane load balancer. Defaults to true. When disabled with nat_router enabled, the NAT router automatically forwards port 6443 to the private control plane LB."
 }
 
 variable "dns_servers" {
@@ -1296,6 +1315,36 @@ variable "k3s_kubelet_config" {
   type        = string
 }
 
+variable "k3s_audit_policy_config" {
+  description = "K3S audit-policy.yaml contents. Used to configure Kubernetes audit logging."
+  default     = ""
+  type        = string
+}
+
+variable "k3s_audit_log_path" {
+  description = "Path where audit logs will be stored on control plane nodes"
+  default     = "/var/log/k3s-audit/audit.log"
+  type        = string
+}
+
+variable "k3s_audit_log_maxage" {
+  description = "Maximum number of days to retain audit log files"
+  default     = 30
+  type        = number
+}
+
+variable "k3s_audit_log_maxbackup" {
+  description = "Maximum number of audit log files to retain"
+  default     = 10
+  type        = number
+}
+
+variable "k3s_audit_log_maxsize" {
+  description = "Maximum size in megabytes of the audit log file before rotation"
+  default     = 100
+  type        = number
+}
+
 variable "additional_tls_sans" {
   description = "Additional TLS SANs to allow connection to control-plane through it."
   default     = []
@@ -1415,5 +1464,15 @@ variable "hetzner_ccm_merge_values" {
   validation {
     condition     = var.hetzner_ccm_merge_values == "" || can(yamldecode(var.hetzner_ccm_merge_values))
     error_message = "hetzner_ccm_merge_values must be valid YAML format or empty string."
+  }
+}
+
+variable "control_plane_endpoint" {
+  type        = string
+  description = "Optional external control plane endpoint URL (e.g. https://myapi.domain.com:6443). Used as the k3s 'server' value for agents and secondary control planes."
+  default     = null
+  validation {
+    condition     = var.control_plane_endpoint == null || can(regex("^https?://(?:(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?|(?:[0-9]{1,3}\\.){3}[0-9]{1,3}|\\[[0-9a-fA-F:]+\\])(?::[0-9]{1,5})?(?:/.*)?$", var.control_plane_endpoint))
+    error_message = "The control_plane_endpoint must be null or a valid URL (e.g., https://my-api.example.com:6443)."
   }
 }
