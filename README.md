@@ -29,8 +29,9 @@ A highly optimized, easy-to-use, auto-upgradable Kubernetes cluster powered by k
 </td>
 <td width="50%" valign="top">
 
-**🤖 Try KH Assistant**<br>
-Our <a href="https://chatgpt.com/g/g-67df95cd1e0c8191baedfa3179061581-kh-assistant">AI-powered kube.tf generator</a>.<br>Just describe your cluster needs!
+**🤖 KH Assistant**<br>
+<a href="https://chatgpt.com/g/g-67df95cd1e0c8191baedfa3179061581-kh-assistant">Custom GPT</a> or <code>/kh-assistant</code> in <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a><br>
+AI-powered config generation & debugging!
 
 </td>
 </tr>
@@ -1098,6 +1099,19 @@ Update `version` in your kube.tf and run `terraform apply`.
 6. Commit: `git commit -m 'Add AmazingFeature'`
 7. Push: `git push origin AmazingFeature`
 8. Open PR targeting `staging` branch
+
+### Claude Code Skills
+
+This project includes [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills in `.claude/skills/` for contributors and maintainers:
+
+| Skill | Purpose |
+|-------|---------|
+| `/kh-assistant` | Interactive help for configuration and debugging |
+| `/fix-issue <num>` | Guided workflow for fixing GitHub issues |
+| `/review-pr <num>` | Security-focused PR review |
+| `/test-changes` | Run terraform fmt, validate, plan |
+
+**PRs to improve these skills are welcome!** See `.claude/skills/` for the skill definitions.
 
 ---
 
